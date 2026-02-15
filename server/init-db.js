@@ -79,6 +79,18 @@ db.exec(`
     UNIQUE(user_id, job_id)
   );
   CREATE INDEX IF NOT EXISTS idx_saved_jobs_user ON saved_jobs(user_id);
+
+  CREATE TABLE IF NOT EXISTS job_reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    reason TEXT,
+    proof_path TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (job_id) REFERENCES jobs(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_job_reports_job ON job_reports(job_id);
 `);
 
 // Seed famous company domains

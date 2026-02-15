@@ -91,9 +91,55 @@ router.get('/jobs', (req, res) => {
 
 router.delete('/jobs/:id', (req, res) => {
   db.prepare('DELETE FROM applications WHERE job_id = ?').run(req.params.id);
+  db.prepare('DELETE FROM job_reports WHERE job_id = ?').run(req.params.id);
   const result = db.prepare('DELETE FROM jobs WHERE id = ?').run(req.params.id);
   if (result.changes === 0) return res.status(404).json({ error: 'Job not found' });
   res.json({ message: 'Job deleted' });
+});
+
+router.get('/reports', (req, res) => {
+  const reports = db.prepare(`
+    SELECT r.*, j.title as job_title, j.company_name, j.hr_id,
+           u_reporter.full_name as reporter_name, u_reporter.email as reporter_email,
+           u_hr.email as hr_email, u_hr.full_name as hr_name, u_hr.company_name as hr_company
+    FROM job_reports r
+    JOIN jobs j ON r.job_id = j.id
+    LEFT JOIN users u_reporter ON r.user_id = u_reporter.id
+    LEFT JOIN users u_hr ON j.hr_id = u_hr.id
+    ORDER BY r.created_at DESC
+  `).all();
+  res.json(reports);
+});
+
+router.delete('/reports/:id', (req, res) => {
+  const result = db.prepare('DELETE FROM job_reports WHERE id = ?').run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Report not found' });
+  res.json({ message: 'Report dismissed' });
+});
+
+router.get('/hrs', (req, res) => {
+  const hrs = db.prepare(`
+    SELECT id, email, full_name, company_name, created_at
+    FROM users WHERE role = 'hr' ORDER BY created_at DESC
+  `).all();
+  res.json(hrs);
+});
+
+router.get('/students', (req, res) => {
+  const students = db.prepare(`
+    SELECT id, email, full_name, created_at
+    FROM users WHERE role = 'student' ORDER BY created_at DESC
+  `).all();
+  res.json(students);
+});
+
+router.get('/companies', (req, res) => {
+  const companies = db.prepare(`
+    SELECT DISTINCT company_name, COUNT(*) as hr_count
+    FROM users WHERE role = 'hr' AND company_name IS NOT NULL AND company_name != ''
+    GROUP BY company_name ORDER BY company_name
+  `).all();
+  res.json(companies);
 });
 
 router.post('/add-admin', (req, res) => {

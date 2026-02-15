@@ -14,6 +14,10 @@ export default function AdminDashboard() {
   const [domains, setDomains] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [jobs, setJobs] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [hrs, setHrs] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('analytics');
   const [newDomain, setNewDomain] = useState({ domain: '', companyName: '' });
@@ -22,8 +26,6 @@ export default function AdminDashboard() {
   const [adminError, setAdminError] = useState('');
   const [adminSuccess, setAdminSuccess] = useState('');
 
-  useEffect(() => { load(); }, [tab]);
-
   const load = () => {
     setLoading(true);
     Promise.all([
@@ -31,13 +33,23 @@ export default function AdminDashboard() {
       api.get('/admin/company-domains').then(r => r.data).catch(() => []),
       api.get('/admin/analytics').then(r => r.data).catch(() => null),
       api.get('/admin/jobs').then(r => r.data).catch(() => []),
-    ]).then(([p, d, a, j]) => {
+      api.get('/admin/reports').then(r => r.data).catch(() => []),
+      api.get('/admin/hrs').then(r => r.data).catch(() => []),
+      api.get('/admin/students').then(r => r.data).catch(() => []),
+      api.get('/admin/companies').then(r => r.data).catch(() => []),
+    ]).then(([p, d, a, j, r, h, s, c]) => {
       setPending(p);
       setDomains(d);
       setAnalytics(a);
       setJobs(j);
+      setReports(r);
+      setHrs(h);
+      setStudents(s);
+      setCompanies(c);
     }).finally(() => setLoading(false));
   };
+
+  useEffect(() => { load(); }, [tab]);
 
   const approve = async (id) => {
     try { await api.post(`/admin/approve-hr/${id}`); load(); } catch (e) { alert(e.message); }
@@ -46,8 +58,14 @@ export default function AdminDashboard() {
     try { await api.post(`/admin/reject-hr/${id}`); load(); } catch (e) { alert(e.message); }
   };
   const deleteJob = async (id, title) => {
-    if (!window.confirm(`Delete job "${title}"? This will also delete all applications.`)) return;
-    try { await api.delete(`/admin/jobs/${id}`); load(); } catch (e) { alert(e.message); }
+    if (!window.confirm(`Delete job "${title}"? This will also delete all applications and reports.`)) return;
+    try {
+      await api.delete(`/admin/jobs/${id}`);
+      load();
+    } catch (e) { alert(e.message); }
+  };
+  const dismissReport = async (id) => {
+    try { await api.delete(`/admin/reports/${id}`); load(); } catch (e) { alert(e.message); }
   };
   const addDomain = async (e) => {
     e.preventDefault();
@@ -62,8 +80,9 @@ export default function AdminDashboard() {
   };
 
   const navItems = [
-    { id: 'analytics', label: 'Total Companies', icon: '📊' },
+    { id: 'analytics', label: 'Analytics', icon: '📊' },
     { id: 'approvals', label: 'Admin Approval Queue', icon: '✓' },
+    { id: 'reports', label: 'Reported Jobs', icon: '⚠️' },
     { id: 'jobs', label: 'View Jobs', icon: '💼' },
     { id: 'domains', label: 'Manage HR Domains', icon: '🌐' },
     { id: 'admins', label: 'Add New Admins', icon: '👤' },
@@ -71,18 +90,7 @@ export default function AdminDashboard() {
 
   return (
     <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
-      {/* Sidebar */}
-      <aside style={{
-        width: 220,
-        flexShrink: 0,
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border)',
-        borderRadius: 12,
-        padding: '1rem 0',
-        height: 'fit-content',
-        position: 'sticky',
-        top: '1rem',
-      }}>
+      <aside style={{ width: 220, flexShrink: 0, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '1rem 0', height: 'fit-content', position: 'sticky', top: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0 1rem', marginBottom: '1rem' }}>
           <MenuIcon />
           <span style={{ fontWeight: 700 }}>Adminb</span>
@@ -93,16 +101,9 @@ export default function AdminDashboard() {
               key={item.id}
               onClick={() => setTab(item.id)}
               className="btn"
-              style={{
-                justifyContent: 'flex-start',
-                background: tab === item.id ? 'var(--accent-light)' : 'transparent',
-                color: tab === item.id ? 'var(--accent)' : 'var(--text)',
-                border: 'none',
-                borderRadius: 0,
-                padding: '0.75rem 1rem',
-              }}
+              style={{ justifyContent: 'flex-start', background: tab === item.id ? 'var(--accent-light)' : 'transparent', color: tab === item.id ? 'var(--accent)' : 'var(--text)', border: 'none', borderRadius: 0, padding: '0.75rem 1rem' }}
             >
-              {item.icon} {item.label}
+              {item.icon} {item.label} {item.id === 'reports' && reports.length > 0 && `(${reports.length})`}
             </button>
           ))}
         </nav>
@@ -112,42 +113,115 @@ export default function AdminDashboard() {
         </div>
       </aside>
 
-      {/* Main content */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ marginBottom: '1.5rem' }}>
           <h1 style={{ marginBottom: '0.25rem', fontSize: '1.5rem' }}>
-            {tab === 'analytics' && 'Total Companies'}
+            {tab === 'analytics' && 'Analytics'}
             {tab === 'approvals' && 'Admin Approval Queue'}
+            {tab === 'reports' && 'Reported Jobs'}
             {tab === 'jobs' && 'View Jobs'}
+            {tab === 'companies' && 'Organizations'}
+            {tab === 'hrs' && 'HRs'}
+            {tab === 'students' && 'Students'}
             {tab === 'domains' && 'Manage HR Domains'}
             {tab === 'admins' && 'Add New Admins'}
           </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem' }}>
-            {tab === 'approvals' && 'Verify or reject pending HR registrations.'}
-            {tab === 'domains' && 'Approve domains and add new ones.'}
-          </p>
         </div>
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '3rem' }}>Loading...</div>
         ) : tab === 'analytics' && analytics ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem' }}>
-            <div className="card stat-card-blue" style={{ textAlign: 'center', padding: '1.25rem', color: 'white', border: 'none' }}>
-              <p style={{ fontSize: '2rem', fontWeight: 700 }}>{analytics.companies}</p>
-              <p style={{ opacity: 0.9, fontSize: '0.875rem' }}>Companies</p>
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+              <button onClick={() => setTab('companies')} className="card stat-card-blue" style={{ textAlign: 'center', padding: '1.25rem', color: 'white', border: 'none', cursor: 'pointer' }}>
+                <p style={{ fontSize: '2rem', fontWeight: 700 }}>{analytics.companies}</p>
+                <p style={{ opacity: 0.9, fontSize: '0.875rem' }}>Organizations</p>
+              </button>
+              <button onClick={() => setTab('hrs')} className="card stat-card-green" style={{ textAlign: 'center', padding: '1.25rem', color: 'white', border: 'none', cursor: 'pointer' }}>
+                <p style={{ fontSize: '2rem', fontWeight: 700 }}>{analytics.hrCount}</p>
+                <p style={{ opacity: 0.9, fontSize: '0.875rem' }}>HRs</p>
+              </button>
+              <button onClick={() => setTab('students')} className="card stat-card-orange" style={{ textAlign: 'center', padding: '1.25rem', color: 'white', border: 'none', cursor: 'pointer' }}>
+                <p style={{ fontSize: '2rem', fontWeight: 700 }}>{analytics.studentCount}</p>
+                <p style={{ opacity: 0.9, fontSize: '0.875rem' }}>Students</p>
+              </button>
+              <button onClick={() => setTab('jobs')} className="card stat-card-red" style={{ textAlign: 'center', padding: '1.25rem', color: 'white', border: 'none', cursor: 'pointer' }}>
+                <p style={{ fontSize: '2rem', fontWeight: 700 }}>{analytics.jobCount}</p>
+                <p style={{ opacity: 0.9, fontSize: '0.875rem' }}>Jobs</p>
+              </button>
             </div>
-            <div className="card stat-card-green" style={{ textAlign: 'center', padding: '1.25rem', color: 'white', border: 'none' }}>
-              <p style={{ fontSize: '2rem', fontWeight: 700 }}>{analytics.hrCount}</p>
-              <p style={{ opacity: 0.9, fontSize: '0.875rem' }}>HRs</p>
-            </div>
-            <div className="card stat-card-orange" style={{ textAlign: 'center', padding: '1.25rem', color: 'white', border: 'none' }}>
-              <p style={{ fontSize: '2rem', fontWeight: 700 }}>{analytics.studentCount}</p>
-              <p style={{ opacity: 0.9, fontSize: '0.875rem' }}>Students</p>
-            </div>
-            <div className="card stat-card-red" style={{ textAlign: 'center', padding: '1.25rem', color: 'white', border: 'none' }}>
-              <p style={{ fontSize: '2rem', fontWeight: 700 }}>{analytics.jobCount}</p>
-              <p style={{ opacity: 0.9, fontSize: '0.875rem' }}>Jobs</p>
-            </div>
+          </div>
+        ) : tab === 'reports' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {reports.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No reported jobs.</div>
+            ) : (
+              reports.map((r) => (
+                <div key={r.id} className="card">
+                  <div style={{ marginBottom: '1rem' }}>
+                    <h4 style={{ marginBottom: '0.5rem' }}>{r.job_title}</h4>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem' }}><strong>Company:</strong> {r.company_name}</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem' }}><strong>Posted by HR:</strong> {r.hr_name || r.hr_email} ({r.hr_email})</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem' }}><strong>Reported by:</strong> {r.reporter_name || r.reporter_email} ({r.reporter_email})</p>
+                    <p style={{ marginTop: '0.5rem' }}><strong>Reason:</strong> {r.reason || '—'}</p>
+                    {r.proof_path && (
+                      <p style={{ marginTop: '0.5rem' }}>
+                        <strong>Proof:</strong>{' '}
+                        <a href={r.proof_path} target="_blank" rel="noopener noreferrer">View proof</a>
+                      </p>
+                    )}
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Reported {new Date(r.created_at).toLocaleString()}</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button onClick={() => deleteJob(r.job_id, r.job_title)} className="btn btn-danger">Delete Job</button>
+                    <button onClick={() => dismissReport(r.id)} className="btn btn-secondary">Dismiss Report</button>
+                    <Link to={`/jobs/${r.job_id}`} className="btn btn-secondary">View Job</Link>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        ) : tab === 'companies' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {companies.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No organizations.</div>
+            ) : (
+              companies.map((c, i) => (
+                <div key={i} className="card">
+                  <p style={{ fontWeight: 600 }}>{c.company_name}</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{c.hr_count} HR{c.hr_count !== 1 ? 's' : ''}</p>
+                </div>
+              ))
+            )}
+          </div>
+        ) : tab === 'hrs' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {hrs.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No HRs registered.</div>
+            ) : (
+              hrs.map((h) => (
+                <div key={h.id} className="card">
+                  <p style={{ fontWeight: 600 }}>{h.full_name || '—'}</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem' }}>{h.email}</p>
+                  <p style={{ fontSize: '0.875rem' }}>{h.company_name || '—'}</p>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Joined {new Date(h.created_at).toLocaleDateString()}</p>
+                </div>
+              ))
+            )}
+          </div>
+        ) : tab === 'students' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {students.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No students registered.</div>
+            ) : (
+              students.map((s) => (
+                <div key={s.id} className="card">
+                  <p style={{ fontWeight: 600 }}>{s.full_name || '—'}</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem' }}>{s.email}</p>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Joined {new Date(s.created_at).toLocaleDateString()}</p>
+                </div>
+              ))
+            )}
           </div>
         ) : tab === 'approvals' ? (
           <div className="card">
@@ -186,7 +260,7 @@ export default function AdminDashboard() {
                 <div key={job.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h3 style={{ marginBottom: '0.25rem' }}>{job.title}</h3>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem' }}>{job.company_name || job.hr_company} · {job.application_count || 0} applications</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem' }}>{job.company_name || job.hr_company} · {job.hr_email} · {job.application_count || 0} applications</p>
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <Link to={`/jobs/${job.id}`} className="btn btn-secondary">View</Link>
@@ -198,10 +272,6 @@ export default function AdminDashboard() {
           </div>
         ) : tab === 'domains' ? (
           <div>
-            <div className="card" style={{ marginBottom: '1.5rem' }}>
-              <h4 style={{ marginBottom: '0.75rem' }}>Approved Domains</h4>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>e.g. @google.com</p>
-            </div>
             <div className="card" style={{ marginBottom: '1.5rem' }}>
               <h4 style={{ marginBottom: '0.75rem' }}>Add New Domain</h4>
               <form onSubmit={addDomain} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>

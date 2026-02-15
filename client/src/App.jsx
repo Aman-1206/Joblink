@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Login from './pages/Login';
+import AuthCallback from './pages/AuthCallback';
 import Register from './pages/Register';
 import Jobs from './pages/Jobs';
 import JobDetail from './pages/JobDetail';
@@ -38,6 +39,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/register" element={<Register />} />
         <Route path="/jobs" element={<Jobs />} />
         <Route path="/jobs/:id" element={<JobDetail />} />

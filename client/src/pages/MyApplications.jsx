@@ -6,12 +6,25 @@ export default function MyApplications() {
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = () => {
     api.get('/applications/my')
-      .then(res => setApps(res.data))
+      .then(res => setApps(res.data || []))
       .catch(() => setApps([]))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(load, []);
+
+  const withdraw = async (appId, e) => {
+    e?.preventDefault();
+    if (!window.confirm('Withdraw this application?')) return;
+    try {
+      await api.delete(`/applications/${appId}`);
+      setApps(prev => prev.filter(a => a.id !== appId));
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 
   const pending = apps.filter(a => a.status === 'pending');
   const accepted = apps.filter(a => a.status === 'accepted');
@@ -79,7 +92,12 @@ export default function MyApplications() {
                     {app.company_name} · Applied {new Date(app.created_at).toLocaleDateString()}
                   </p>
                 </div>
-                <span style={statusStyle(app.status)}>{app.status}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={statusStyle(app.status)}>{app.status}</span>
+                  <button onClick={(e) => withdraw(app.id, e)} className="btn btn-secondary" style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}>
+                    Withdraw
+                  </button>
+                </div>
               </div>
             </div>
           ))

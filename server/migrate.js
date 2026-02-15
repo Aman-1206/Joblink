@@ -29,3 +29,50 @@ try {
 } catch (e) {
   console.warn('Migration saved_jobs:', e.message);
 }
+
+// Add job_reports table
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS job_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      reason TEXT,
+      proof_path TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (job_id) REFERENCES jobs(id),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_job_reports_job ON job_reports(job_id);
+  `);
+} catch (e) {
+  console.warn('Migration job_reports:', e.message);
+}
+
+// Add email_otps table
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS email_otps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      otp TEXT NOT NULL,
+      role TEXT NOT NULL,
+      payload TEXT,
+      expires_at DATETIME NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_email_otps_email ON email_otps(email);
+  `);
+} catch (e) {
+  console.warn('Migration email_otps:', e.message);
+}
+
+// Add google_id to users
+try {
+  const info = db.prepare('PRAGMA table_info(users)').all();
+  if (!info.some((c) => c.name === 'google_id')) {
+    db.exec('ALTER TABLE users ADD COLUMN google_id TEXT');
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL');
+} catch (e) {
+  console.warn('Migration google_id:', e.message);
+}

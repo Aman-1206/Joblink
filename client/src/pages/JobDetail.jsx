@@ -12,6 +12,11 @@ export default function JobDetail() {
   const [coverLetter, setCoverLetter] = useState('');
   const [resume, setResume] = useState(null);
   const [error, setError] = useState('');
+  const [myAppId, setMyAppId] = useState(null);
+  const [showReport, setShowReport] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportProof, setReportProof] = useState(null);
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     api.get(`/jobs/${id}`)
@@ -24,16 +29,20 @@ export default function JobDetail() {
     api.get('/auth/me').then(res => setUser(res.data)).catch(() => setUser(null));
   }, []);
 
-  const [hasApplied, setHasApplied] = useState(false);
   useEffect(() => {
     if (user?.role === 'student' && id) {
       api.get('/applications/my')
-        .then(res => setHasApplied((res.data || []).some(a => a.job_id === Number(id))))
-        .catch(() => setHasApplied(false));
+        .then(res => {
+          const app = (res.data || []).find(a => a.job_id === Number(id));
+          setMyAppId(app?.id ?? null);
+        })
+        .catch(() => setMyAppId(null));
     } else {
-      setHasApplied(false);
+      setMyAppId(null);
     }
   }, [user, id]);
+
+  const hasApplied = !!myAppId;
 
   const handleApply = async (e) => {
     e.preventDefault();
@@ -50,15 +59,50 @@ export default function JobDetail() {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         body: formData,
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to apply');
-
+      setMyAppId(data.id);
       navigate('/my-applications');
     } catch (err) {
       setError(err.message);
     } finally {
       setApplying(false);
+    }
+  };
+
+  const withdraw = async () => {
+    if (!myAppId || !window.confirm('Withdraw this application?')) return;
+    try {
+      await api.delete(`/applications/${myAppId}`);
+      navigate('/my-applications');
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleReport = async (e) => {
+    e.preventDefault();
+    setReporting(true);
+    try {
+      const formData = new FormData();
+      formData.append('jobId', id);
+      formData.append('reason', reportReason);
+      if (reportProof) formData.append('proof', reportProof);
+      const res = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to report');
+      setShowReport(false);
+      setReportReason('');
+      setReportProof(null);
+      alert('Report submitted. Thank you.');
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setReporting(false);
     }
   };
 
@@ -84,27 +128,22 @@ export default function JobDetail() {
         <div style={{ whiteSpace: 'pre-wrap' }}>{job.description || 'No description provided.'}</div>
       </div>
 
-      <div className="card">
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
         <h3 style={{ marginBottom: '1rem' }}>Apply for this job</h3>
         {user?.role === 'student' && hasApplied ? (
-          <p style={{ color: 'var(--success)', fontWeight: 500 }}>You have already applied for this job.</p>
+          <div>
+            <p style={{ color: 'var(--success)', fontWeight: 500 }}>You have already applied for this job.</p>
+            <button onClick={withdraw} className="btn btn-secondary" style={{ marginTop: '0.5rem' }}>Withdraw Application</button>
+          </div>
         ) : user?.role === 'student' ? (
           <form onSubmit={handleApply}>
             <div className="form-group">
               <label>Cover Letter (optional)</label>
-              <textarea
-                value={coverLetter}
-                onChange={(e) => setCoverLetter(e.target.value)}
-                placeholder="Tell the employer why you're a great fit..."
-              />
+              <textarea value={coverLetter} onChange={(e) => setCoverLetter(e.target.value)} placeholder="Tell the employer why you're a great fit..." />
             </div>
             <div className="form-group">
               <label>Resume (PDF, JPG, PNG - max 5MB)</label>
-              <input
-                type="file"
-                accept=".pdf,image/jpeg,image/png"
-                onChange={(e) => setResume(e.target.files?.[0])}
-              />
+              <input type="file" accept=".pdf,image/jpeg,image/png" onChange={(e) => setResume(e.target.files?.[0])} />
             </div>
             {error && <p className="error-msg">{error}</p>}
             <button type="submit" className="btn btn-primary" disabled={applying}>
@@ -118,6 +157,34 @@ export default function JobDetail() {
           </p>
         )}
       </div>
+
+      {user?.role === 'student' && (
+        <div className="card">
+          <h3 style={{ marginBottom: '1rem' }}>Report this job</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem', marginBottom: '1rem' }}>
+            Report fake jobs, promotional content, or inappropriate listings.
+          </p>
+          {!showReport ? (
+            <button onClick={() => setShowReport(true)} className="btn btn-secondary">Report Job</button>
+          ) : (
+            <form onSubmit={handleReport}>
+              <div className="form-group">
+                <label>Reason (required)</label>
+                <textarea value={reportReason} onChange={(e) => setReportReason(e.target.value)} placeholder="Describe why you're reporting this job (e.g. fake interview, promoting products)..." required />
+              </div>
+              <div className="form-group">
+                <label>Proof (screenshot, photo or video - optional)</label>
+                <input type="file" accept="image/*,video/*" onChange={(e) => setReportProof(e.target.files?.[0])} />
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Images: JPEG, PNG, WebP. Videos: MP4, WebM. Max 10MB.</p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button type="submit" className="btn btn-danger" disabled={reporting}>{reporting ? 'Submitting...' : 'Submit Report'}</button>
+                <button type="button" onClick={() => { setShowReport(false); setReportReason(''); setReportProof(null); }} className="btn btn-secondary">Cancel</button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -55,6 +55,20 @@ router.delete('/jobs/:id', (req, res) => {
   res.json({ message: 'Job deleted' });
 });
 
+router.get('/all-applicants', (req, res) => {
+  const applicants = db.prepare(`
+    SELECT a.id, a.status, a.created_at, a.job_id,
+           u.full_name, u.email,
+           j.title as job_title, j.company_name
+    FROM applications a
+    JOIN jobs j ON a.job_id = j.id
+    JOIN users u ON a.user_id = u.id
+    WHERE j.hr_id = ?
+    ORDER BY a.created_at DESC
+  `).all(req.user.id);
+  res.json(applicants);
+});
+
 router.get('/jobs/:jobId/applications', (req, res) => {
   const job = db.prepare('SELECT id FROM jobs WHERE hr_id = ? AND id = ?')
     .get(req.user.id, req.params.jobId);
@@ -74,8 +88,8 @@ router.get('/jobs/:jobId/applications', (req, res) => {
 
 router.patch('/applications/:id/status', (req, res) => {
   const { status } = req.body;
-  if (!['accepted', 'rejected'].includes(status)) {
-    return res.status(400).json({ error: 'Status must be accepted or rejected' });
+  if (!['pending', 'accepted', 'rejected'].includes(status)) {
+    return res.status(400).json({ error: 'Status must be pending, accepted or rejected' });
   }
   const app = db.prepare('SELECT a.id FROM applications a JOIN jobs j ON a.job_id = j.id WHERE a.id = ? AND j.hr_id = ?')
     .get(req.params.id, req.user.id);

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -8,7 +9,9 @@ import applicationsRoutes from './routes/applications.js';
 import adminRoutes from './routes/admin.js';
 import hrRoutes from './routes/hr.js';
 import savedJobsRoutes from './routes/savedJobs.js';
+import reportsRoutes from './routes/reports.js';
 import { createUploadDir } from './utils/upload.js';
+import passport from 'passport';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,8 +24,9 @@ createUploadDir();
 // Run migrations
 import('./migrate.js').catch(() => {});
 
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
 app.use(express.json());
+app.use(passport.initialize());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use('/api/auth', authRoutes);
@@ -31,6 +35,7 @@ app.use('/api/applications', applicationsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/hr', hrRoutes);
 app.use('/api/saved-jobs', savedJobsRoutes);
+app.use('/api/reports', reportsRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

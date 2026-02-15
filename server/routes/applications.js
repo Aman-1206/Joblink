@@ -50,4 +50,14 @@ router.get('/my', authMiddleware, (req, res) => {
   res.json(apps);
 });
 
+router.delete('/:id', authMiddleware, (req, res) => {
+  const app = db.prepare('SELECT * FROM applications WHERE id = ?').get(req.params.id);
+  if (!app) return res.status(404).json({ error: 'Application not found' });
+  if (app.user_id !== req.user.id) return res.status(403).json({ error: 'Can only withdraw your own application' });
+  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(req.user.id);
+  if (user?.role !== 'student') return res.status(403).json({ error: 'Only students can withdraw applications' });
+  db.prepare('DELETE FROM applications WHERE id = ?').run(req.params.id);
+  res.json({ message: 'Application withdrawn' });
+});
+
 export default router;
