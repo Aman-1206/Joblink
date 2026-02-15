@@ -1,0 +1,237 @@
+import { useState, useEffect } from 'react';
+import { api } from '../lib/api';
+
+export default function HRDashboard() {
+  const [tab, setTab] = useState('jobs');
+  const [jobs, setJobs] = useState([]);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({ title: '', description: '', companyName: '', location: '', type: 'Full-time' });
+  const [error, setError] = useState('');
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    api.get('/auth/me').then(res => setUser(res.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    api.get('/hr/my-jobs')
+      .then(res => setJobs(res.data))
+      .catch(() => setJobs([]))
+      .finally(() => setLoading(false));
+  }, [tab, showCreate]);
+
+  const loadApplications = () => {
+    if (selectedJob) {
+      api.get(`/hr/jobs/${selectedJob.id}/applications`)
+        .then(res => setApplications(res.data))
+        .catch(() => setApplications([]));
+    } else {
+      setApplications([]);
+    }
+  };
+
+  useEffect(loadApplications, [selectedJob]);
+
+  const totalApplicants = jobs.reduce((s, j) => s + (j.application_count || 0), 0);
+  const pendingDecisions = applications.filter(a => a.status === 'pending').length;
+
+  const updateApplicationStatus = async (appId, status, confirmReject = false) => {
+    if (status === 'rejected' && confirmReject && !window.confirm('Are you sure you want to reject this applicant?')) return;
+    try {
+      await api.patch(`/hr/applications/${appId}/status`, { status });
+      setApplications(prev => prev.map(a => a.id === appId ? { ...a, status } : a));
+      api.get('/hr/my-jobs').then(res => setJobs(res.data));
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  const handleCreateJob = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      await api.post('/hr/jobs', {
+        ...form,
+        companyName: form.companyName || user?.company_name || 'Your Company',
+      });
+      setShowCreate(false);
+      setForm({ title: '', description: '', companyName: '', location: '', type: 'Full-time' });
+      api.get('/hr/my-jobs').then(res => setJobs(res.data));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <div className="container">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
+        <div>
+          <h1 style={{ marginBottom: '0.25rem', fontSize: '1.5rem' }}>HR Dashboard</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem' }}>Manage your jobs and applicants</p>
+        </div>
+        <button onClick={() => setShowCreate(true)} className="btn btn-primary">+ Post Job</button>
+      </div>
+
+      {/* Summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+        <div className="card stat-card-blue" style={{ textAlign: 'center', padding: '1.25rem', color: 'white', border: 'none' }}>
+          <p style={{ fontSize: '2rem', fontWeight: 700 }}>{jobs.length}</p>
+          <p style={{ opacity: 0.9, fontSize: '0.875rem' }}>Total Jobs</p>
+        </div>
+        <div className="card stat-card-green" style={{ textAlign: 'center', padding: '1.25rem', color: 'white', border: 'none' }}>
+          <p style={{ fontSize: '2rem', fontWeight: 700 }}>{jobs.length}</p>
+          <p style={{ opacity: 0.9, fontSize: '0.875rem' }}>Active Jobs</p>
+        </div>
+        <div className="card stat-card-orange" style={{ textAlign: 'center', padding: '1.25rem', color: 'white', border: 'none' }}>
+          <p style={{ fontSize: '2rem', fontWeight: 700 }}>{totalApplicants}</p>
+          <p style={{ opacity: 0.9, fontSize: '0.875rem' }}>Total Applicants</p>
+        </div>
+        <div className="card stat-card-red" style={{ textAlign: 'center', padding: '1.25rem', color: 'white', border: 'none' }}>
+          <p style={{ fontSize: '2rem', fontWeight: 700 }}>{selectedJob ? applications.filter(a => a.status !== 'pending').length : '-'}</p>
+          <p style={{ opacity: 0.9, fontSize: '0.875rem' }}>Decisions Made</p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)' }}>
+        <button
+          className={`btn ${tab === 'jobs' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginBottom: '-1px' }}
+          onClick={() => { setTab('jobs'); setSelectedJob(null); }}
+        >
+          My Jobs
+        </button>
+        <button
+          className={`btn ${tab === 'applicants' || selectedJob ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginBottom: '-1px' }}
+          onClick={() => setTab('applicants')}
+        >
+          Applicants
+        </button>
+        {selectedJob && (
+          <button className="btn btn-secondary" onClick={() => setSelectedJob(null)} style={{ marginLeft: 'auto' }}>
+            ← Back
+          </button>
+        )}
+      </div>
+
+      {showCreate && (
+        <div className="card" style={{ marginBottom: '2rem' }}>
+          <h3 style={{ marginBottom: '1rem' }}>Create Job Listing</h3>
+          <form onSubmit={handleCreateJob}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-group">
+                <label>Job Title *</label>
+                <input value={form.title} onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Software Engineer" required />
+              </div>
+              <div className="form-group">
+                <label>Location</label>
+                <input value={form.location} onChange={(e) => setForm(f => ({ ...f, location: e.target.value }))} placeholder="Remote / New York" />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-group">
+                <label>Job Type</label>
+                <select value={form.type} onChange={(e) => setForm(f => ({ ...f, type: e.target.value }))}>
+                  <option>Full-time</option>
+                  <option>Part-time</option>
+                  <option>Contract</option>
+                  <option>Internship</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Company Name</label>
+                <input value={form.companyName} onChange={(e) => setForm(f => ({ ...f, companyName: e.target.value }))} placeholder={user?.company_name || 'Your Company'} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Job Description</label>
+              <textarea value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Responsibilities, requirements..." style={{ minHeight: 120 }} />
+            </div>
+            {error && <p className="error-msg">{error}</p>}
+            <button type="submit" className="btn btn-primary">Post Job</button>
+            <button type="button" onClick={() => setShowCreate(false)} className="btn btn-secondary" style={{ marginLeft: '0.5rem' }}>Cancel</button>
+          </form>
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '3rem' }}>Loading...</div>
+      ) : selectedJob ? (
+        <div>
+          <h3 style={{ marginBottom: '1rem' }}>Applications for {selectedJob.title}</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {applications.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No applications yet.</div>
+            ) : (
+              applications.map((app) => (
+                <div key={app.id} className="card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <p style={{ fontWeight: 600 }}>{app.full_name || 'Applicant'}</p>
+                        <span style={{
+                          padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 500,
+                          background: app.status === 'accepted' ? 'var(--success-light)' : app.status === 'rejected' ? 'var(--danger-light)' : 'var(--warning-light)',
+                          color: app.status === 'accepted' ? 'var(--success)' : app.status === 'rejected' ? 'var(--danger)' : 'var(--warning)',
+                        }}>{app.status}</span>
+                      </div>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem' }}>{app.email}</p>
+                      {app.cover_letter && <p style={{ marginTop: '0.5rem', fontSize: '0.9375rem' }}>{app.cover_letter.slice(0, 200)}{app.cover_letter.length > 200 ? '...' : ''}</p>}
+                      <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Applied {new Date(app.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {app.resume_path && <a href={app.resume_path} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">View Resume</a>}
+                      {app.status === 'pending' && (
+                        <>
+                          <button onClick={() => updateApplicationStatus(app.id, 'accepted')} className="btn btn-primary">Accept</button>
+                          <button onClick={() => updateApplicationStatus(app.id, 'rejected', true)} className="btn btn-danger">Reject</button>
+                        </>
+                      )}
+                      {(app.status === 'accepted' || app.status === 'rejected') && (
+                        <>
+                          <button onClick={() => updateApplicationStatus(app.id, 'pending')} className="btn btn-secondary">Revert to Pending</button>
+                          {app.status === 'accepted' ? (
+                            <button onClick={() => updateApplicationStatus(app.id, 'rejected', true)} className="btn btn-danger">Reject</button>
+                          ) : (
+                            <button onClick={() => updateApplicationStatus(app.id, 'accepted')} className="btn btn-primary">Accept</button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {jobs.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+              You haven't posted any jobs yet. Create your first job above!
+            </div>
+          ) : (
+            jobs.map((job) => (
+              <div key={job.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h3 style={{ marginBottom: '0.25rem' }}>{job.title}</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem' }}>{job.company_name} · {job.location || 'Remote'} · {job.type}</p>
+                  <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                    {job.application_count || 0} applicant{(job.application_count || 0) !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <button onClick={() => setSelectedJob(job)} className="btn btn-primary">
+                  View Applicants →
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

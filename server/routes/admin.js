@@ -1,0 +1,114 @@
+import { Router } from 'express';
+import bcrypt from 'bcryptjs';
+import { db } from '../utils/db.js';
+import { authMiddleware, roleMiddleware } from '../utils/auth.js';
+
+const router = Router();
+router.use(authMiddleware);
+router.use(roleMiddleware('admin'));
+
+router.get('/pending-hr', (req, res) => {
+  const pending = db.prepare(`
+    SELECT id, email, full_name, phone, company_name, created_at
+    FROM hr_pending_approvals
+    ORDER BY created_at DESC
+  `).all();
+  res.json(pending);
+});
+
+router.post('/approve-hr/:id', (req, res) => {
+  const pending = db.prepare('SELECT * FROM hr_pending_approvals WHERE id = ?')
+    .get(req.params.id);
+
+  if (!pending) return res.status(404).json({ error: 'Request not found' });
+
+  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(pending.email);
+  if (existing) {
+    db.prepare('DELETE FROM hr_pending_approvals WHERE id = ?').run(req.params.id);
+    return res.status(400).json({ error: 'User already registered' });
+  }
+
+  db.prepare(`
+    INSERT INTO users (email, password_hash, role, full_name, phone, company_name, status)
+    VALUES (?, ?, 'hr', ?, ?, ?, 'active')
+  `).run(pending.email, pending.password_hash, pending.full_name, pending.phone, pending.company_name);
+
+  db.prepare('DELETE FROM hr_pending_approvals WHERE id = ?').run(req.params.id);
+
+  res.json({ message: 'HR approved successfully' });
+});
+
+router.post('/reject-hr/:id', (req, res) => {
+  const result = db.prepare('DELETE FROM hr_pending_approvals WHERE id = ?').run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Request not found' });
+  res.json({ message: 'HR request rejected' });
+});
+
+router.get('/company-domains', (req, res) => {
+  const domains = db.prepare('SELECT * FROM company_domains ORDER BY company_name').all();
+  res.json(domains);
+});
+
+router.post('/company-domains', (req, res) => {
+  const { domain, companyName } = req.body;
+  if (!domain || !companyName) return res.status(400).json({ error: 'Domain and company name required' });
+
+  try {
+    const result = db.prepare('INSERT INTO company_domains (domain, company_name) VALUES (?, ?)')
+      .run(domain.toLowerCase().replace(/^www\./, ''), companyName);
+    res.status(201).json({ id: result.lastInsertRowid, domain, company_name: companyName });
+  } catch (e) {
+    if (e.message.includes('UNIQUE')) return res.status(400).json({ error: 'Domain already exists' });
+    throw e;
+  }
+});
+
+router.get('/analytics', (req, res) => {
+  const companies = db.prepare('SELECT COUNT(DISTINCT company_name) as c FROM users WHERE role = ? AND company_name IS NOT NULL AND company_name != ?').get('hr', '');
+  const hrCount = db.prepare('SELECT COUNT(*) as c FROM users WHERE role = ?').get('hr');
+  const studentCount = db.prepare('SELECT COUNT(*) as c FROM users WHERE role = ?').get('student');
+  const jobCount = db.prepare('SELECT COUNT(*) as c FROM jobs').get();
+  const adminCount = db.prepare('SELECT COUNT(*) as c FROM users WHERE role = ?').get('admin');
+  res.json({
+    companies: companies?.c ?? 0,
+    hrCount: hrCount?.c ?? 0,
+    studentCount: studentCount?.c ?? 0,
+    jobCount: jobCount?.c ?? 0,
+    adminCount: adminCount?.c ?? 0,
+  });
+});
+
+router.get('/jobs', (req, res) => {
+  const jobs = db.prepare(`
+    SELECT j.*, u.company_name as hr_company, u.email as hr_email,
+      (SELECT COUNT(*) FROM applications WHERE job_id = j.id) as application_count
+    FROM jobs j
+    LEFT JOIN users u ON j.hr_id = u.id
+    ORDER BY j.created_at DESC
+  `).all();
+  res.json(jobs);
+});
+
+router.delete('/jobs/:id', (req, res) => {
+  db.prepare('DELETE FROM applications WHERE job_id = ?').run(req.params.id);
+  const result = db.prepare('DELETE FROM jobs WHERE id = ?').run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Job not found' });
+  res.json({ message: 'Job deleted' });
+});
+
+router.post('/add-admin', (req, res) => {
+  const { email, password, fullName } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  if (existing) return res.status(400).json({ error: 'Email already registered' });
+  const hash = bcrypt.hashSync(password, 10);
+  const result = db.prepare(`
+    INSERT INTO users (email, password_hash, role, full_name, status)
+    VALUES (?, ?, 'admin', ?, 'active')
+  `).run(email, hash, fullName || '');
+  const user = db.prepare('SELECT id, email, role, full_name FROM users WHERE id = ?').get(result.lastInsertRowid);
+  delete user?.password_hash;
+  res.status(201).json({ message: 'Admin added', user });
+});
+
+export default router;
