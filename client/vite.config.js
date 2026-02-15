@@ -6,8 +6,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:5001',
-      '/uploads': 'http://localhost:5001',
+      '/api': 'http://localhost:5002',
+      '/uploads': 'http://localhost:5002',
     },
   },
 });

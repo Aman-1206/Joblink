@@ -48,7 +48,7 @@ export default function Login() {
   useEffect(() => {
     const err = searchParams.get('error');
     if (err === 'google_failed') {
-      setError('Google sign-in failed. Check that the redirect URI in Google Cloud Console is exactly: http://localhost:5001/api/auth/google/callback and that your email is added as a test user if the app is in Testing mode.');
+      setError('Google sign-in failed. Check that the redirect URI in Google Cloud Console is exactly: http://localhost:5002/api/auth/google/callback and that your email is added as a test user if the app is in Testing mode.');
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams]);
