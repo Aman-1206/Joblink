@@ -19,7 +19,7 @@ function generateOTP() {
 }
 
 // Send OTP for registration
-router.post('/send-otp', (req, res) => {
+router.post('/send-otp', async (req, res) => {
   try {
     const { email, role } = req.body;
     if (!email || !role) return res.status(400).json({ error: 'Email and role required' });
@@ -37,11 +37,12 @@ router.post('/send-otp', (req, res) => {
       INSERT INTO email_otps (email, otp, role, expires_at) VALUES (?, ?, ?, ?)
     `).run(email, otp, role, expiresAt);
 
-    sendOTPEmail(email, otp);
+    await sendOTPEmail(email, otp);
 
     res.json({ message: 'OTP sent to your email' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Send OTP error:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to send OTP. Check your SMTP settings.' });
   }
 });
 
@@ -183,10 +184,13 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   }));
 
   router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-  router.get('/google/callback', passport.authenticate('google', { session: false }), (req, res) => {
-    const token = generateToken(req.user);
-    res.redirect(`${FRONTEND_URL}/auth/callback?token=${token}`);
-  });
+  router.get('/google/callback',
+    passport.authenticate('google', { session: false, failureRedirect: `${FRONTEND_URL}/login?error=google_failed` }),
+    (req, res) => {
+      const token = generateToken(req.user);
+      res.redirect(`${FRONTEND_URL}/auth/callback?token=${token}`);
+    }
+  );
 }
 
 router.post('/login', (req, res) => {

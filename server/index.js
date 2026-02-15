@@ -17,7 +17,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = parseInt(process.env.PORT || '5001', 10);
 
 createUploadDir();
 
@@ -37,6 +37,15 @@ app.use('/api/hr', hrRoutes);
 app.use('/api/saved-jobs', savedJobsRoutes);
 app.use('/api/reports', reportsRoutes);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+});
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\nPort ${PORT} is already in use. Either:`);
+    console.error(`  1. Stop the other process using port ${PORT}`);
+    console.error(`  2. Or set PORT=5002 (or another port) in .env and update client/vite.config.js proxy target\n`);
+    process.exit(1);
+  }
+  throw err;
 });

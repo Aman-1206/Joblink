@@ -1,6 +1,14 @@
 import nodemailer from 'nodemailer';
 
-const transporter = nodemailer.createTransport({
+// Use Gmail service for better compatibility when using Gmail
+const isGmail = (process.env.SMTP_HOST || '').includes('gmail');
+const transporter = nodemailer.createTransport(isGmail ? {
+  service: 'gmail',
+  auth: process.env.SMTP_USER ? {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  } : undefined,
+} : {
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.SMTP_PORT || '587', 10),
   secure: process.env.SMTP_SECURE === 'true',
@@ -15,8 +23,10 @@ export async function sendOTPEmail(to, otp) {
     console.log(`[DEV] OTP for ${to}: ${otp}`);
     return { dev: true };
   }
+  // Use plain email for Gmail to avoid rejections
+  const from = isGmail ? process.env.SMTP_USER : (process.env.SMTP_FROM || process.env.SMTP_USER);
   await transporter.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    from,
     to,
     subject: 'Your JobLink verification code',
     text: `Your verification code is: ${otp}\n\nThis code expires in 10 minutes.`,

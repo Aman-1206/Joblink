@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 
 function GoogleSignInButton({ role }) {
@@ -38,11 +38,20 @@ function GoogleSignInButton({ role }) {
 }
 
 export default function Login() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [role, setRole] = useState('student');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const err = searchParams.get('error');
+    if (err === 'google_failed') {
+      setError('Google sign-in failed. Check that the redirect URI in Google Cloud Console is exactly: http://localhost:5001/api/auth/google/callback and that your email is added as a test user if the app is in Testing mode.');
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
