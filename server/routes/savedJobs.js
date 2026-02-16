@@ -12,7 +12,8 @@ router.get('/', (req, res) => {
 });
 
 router.get('/list', (req, res) => {
-  const jobs = db.prepare(`
+  const q = (req.query.q || '').trim().toLowerCase();
+  let jobs = db.prepare(`
     SELECT j.*, u.company_name as hr_company
     FROM saved_jobs s
     JOIN jobs j ON s.job_id = j.id
@@ -20,6 +21,14 @@ router.get('/list', (req, res) => {
     WHERE s.user_id = ?
     ORDER BY s.created_at DESC
   `).all(req.user.id);
+  if (q) {
+    jobs = jobs.filter(j =>
+      (j.title || '').toLowerCase().includes(q) ||
+      (j.hr_company || j.company_name || '').toLowerCase().includes(q) ||
+      (j.location || '').toLowerCase().includes(q) ||
+      (j.type || '').toLowerCase().includes(q)
+    );
+  }
   res.json(jobs);
 });
 

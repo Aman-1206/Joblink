@@ -5,16 +5,18 @@ import { api } from '../lib/api';
 export default function Jobs() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [user, setUser] = useState(null);
   const [appliedIds, setAppliedIds] = useState(new Set());
   const [savedIds, setSavedIds] = useState(new Set());
 
   useEffect(() => {
-    api.get('/jobs')
+    const q = search.trim() ? `?q=${encodeURIComponent(search.trim())}` : '';
+    api.get(`/jobs${q}`)
       .then(res => setJobs(res.data))
       .catch(() => setJobs([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [search]);
 
   useEffect(() => {
     api.get('/auth/me')
@@ -61,8 +63,17 @@ export default function Jobs() {
   return (
     <div className="container">
       <h1 style={{ marginBottom: '0.5rem', fontSize: '1.5rem' }}>Student Job Feed</h1>
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+        <input
+          type="search"
+          placeholder="Search jobs by title, company, location..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 240, padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid var(--border)' }}
+        />
+      </div>
       <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '0.9375rem' }}>
-        {jobs.length} job{jobs.length !== 1 ? 's' : ''} available
+        {jobs.length} job{jobs.length !== 1 ? 's' : ''} {search ? 'found' : 'available'}
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

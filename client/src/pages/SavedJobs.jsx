@@ -5,15 +5,17 @@ import { api } from '../lib/api';
 export default function SavedJobs() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
   const load = () => {
-    api.get('/saved-jobs/list')
+    const q = search.trim() ? `?q=${encodeURIComponent(search.trim())}` : '';
+    api.get(`/saved-jobs/list${q}`)
       .then(res => setJobs(Array.isArray(res.data) ? res.data : []))
       .catch(() => setJobs([]))
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  useEffect(load, [search]);
 
   const unsave = async (jobId, e) => {
     e.preventDefault();
@@ -31,9 +33,18 @@ export default function SavedJobs() {
   return (
     <div className="container">
       <h1 style={{ marginBottom: '0.5rem', fontSize: '1.5rem' }}>Saved Jobs</h1>
-      <p style={{ color: 'var(--text-muted)', marginBottom: '2rem', fontSize: '0.9375rem' }}>
+      <p style={{ color: 'var(--text-muted)', marginBottom: '1rem', fontSize: '0.9375rem' }}>
         {jobs.length} saved job{jobs.length !== 1 ? 's' : ''}
       </p>
+      {jobs.length > 0 && (
+        <input
+          type="search"
+          placeholder="Search saved jobs by title, company, location..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ marginBottom: '1.5rem', padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid var(--border)', width: '100%', maxWidth: 360 }}
+        />
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {jobs.length === 0 ? (

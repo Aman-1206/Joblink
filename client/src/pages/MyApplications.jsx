@@ -5,15 +5,17 @@ import { api } from '../lib/api';
 export default function MyApplications() {
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
   const load = () => {
-    api.get('/applications/my')
+    const q = search.trim() ? `?q=${encodeURIComponent(search.trim())}` : '';
+    api.get(`/applications/my${q}`)
       .then(res => setApps(res.data || []))
       .catch(() => setApps([]))
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  useEffect(load, [search]);
 
   const withdraw = async (appId, e) => {
     e?.preventDefault();
@@ -44,9 +46,18 @@ export default function MyApplications() {
   return (
     <div className="container">
       <h1 style={{ marginBottom: '0.5rem' }}>Application Status</h1>
-      <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
+      <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
         Track all your job applications and their status
       </p>
+      {apps.length > 0 && (
+        <input
+          type="search"
+          placeholder="Search by job title, company, status..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ marginBottom: '1.5rem', padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid var(--border)', width: '100%', maxWidth: 360 }}
+        />
+      )}
 
       {apps.length > 0 && (
         <div style={{

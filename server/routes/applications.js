@@ -40,13 +40,21 @@ router.post('/', authMiddleware, upload.single('resume'), (req, res) => {
 });
 
 router.get('/my', authMiddleware, (req, res) => {
-  const apps = db.prepare(`
+  const q = (req.query.q || '').trim().toLowerCase();
+  let apps = db.prepare(`
     SELECT a.*, j.title, j.company_name, j.created_at as job_created
     FROM applications a
     JOIN jobs j ON a.job_id = j.id
     WHERE a.user_id = ?
     ORDER BY a.created_at DESC
   `).all(req.user.id);
+  if (q) {
+    apps = apps.filter(a =>
+      (a.title || '').toLowerCase().includes(q) ||
+      (a.company_name || '').toLowerCase().includes(q) ||
+      String(a.status || '').toLowerCase().includes(q)
+    );
+  }
   res.json(apps);
 });
 

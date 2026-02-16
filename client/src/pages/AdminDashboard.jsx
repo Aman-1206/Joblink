@@ -20,6 +20,7 @@ export default function AdminDashboard() {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('analytics');
+  const [search, setSearch] = useState('');
   const [newDomain, setNewDomain] = useState({ domain: '', companyName: '' });
   const [newAdmin, setNewAdmin] = useState({ email: '', password: '', fullName: '' });
   const [domainError, setDomainError] = useState('');
@@ -28,15 +29,16 @@ export default function AdminDashboard() {
 
   const load = () => {
     setLoading(true);
+    const q = search.trim() ? `?q=${encodeURIComponent(search.trim())}` : '';
     Promise.all([
-      api.get('/admin/pending-hr').then(r => r.data).catch(() => []),
+      api.get(`/admin/pending-hr${q}`).then(r => r.data).catch(() => []),
       api.get('/admin/company-domains').then(r => r.data).catch(() => []),
       api.get('/admin/analytics').then(r => r.data).catch(() => null),
-      api.get('/admin/jobs').then(r => r.data).catch(() => []),
+      api.get(`/admin/jobs${q}`).then(r => r.data).catch(() => []),
       api.get('/admin/reports').then(r => r.data).catch(() => []),
-      api.get('/admin/hrs').then(r => r.data).catch(() => []),
-      api.get('/admin/students').then(r => r.data).catch(() => []),
-      api.get('/admin/companies').then(r => r.data).catch(() => []),
+      api.get(`/admin/hrs${q}`).then(r => r.data).catch(() => []),
+      api.get(`/admin/students${q}`).then(r => r.data).catch(() => []),
+      api.get(`/admin/companies${q}`).then(r => r.data).catch(() => []),
     ]).then(([p, d, a, j, r, h, s, c]) => {
       setPending(p);
       setDomains(d);
@@ -49,7 +51,7 @@ export default function AdminDashboard() {
     }).finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [tab]);
+  useEffect(() => { load(); }, [tab, search]);
 
   const approve = async (id) => {
     try { await api.post(`/admin/approve-hr/${id}`); load(); } catch (e) { alert(e.message); }
@@ -115,6 +117,15 @@ export default function AdminDashboard() {
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ marginBottom: '1.5rem' }}>
+          {(tab === 'approvals' || tab === 'jobs' || tab === 'hrs' || tab === 'students' || tab === 'companies') && (
+            <input
+              type="search"
+              placeholder={tab === 'approvals' ? 'Search pending HR by company, email, GST...' : tab === 'hrs' ? 'Search HRs by name, email, company, GST...' : tab === 'students' ? 'Search students by name, email...' : tab === 'companies' ? 'Search organizations...' : 'Search jobs by title, company...'}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ marginBottom: '1rem', padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid var(--border)', width: '100%', maxWidth: 360 }}
+            />
+          )}
           <h1 style={{ marginBottom: '0.25rem', fontSize: '1.5rem' }}>
             {tab === 'analytics' && 'Analytics'}
             {tab === 'approvals' && 'Admin Approval Queue'}
@@ -200,11 +211,17 @@ export default function AdminDashboard() {
               <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No HRs registered.</div>
             ) : (
               hrs.map((h) => (
-                <div key={h.id} className="card">
-                  <p style={{ fontWeight: 600 }}>{h.full_name || '—'}</p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem' }}>{h.email}</p>
-                  <p style={{ fontSize: '0.875rem' }}>{h.company_name || '—'}</p>
-                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Joined {new Date(h.created_at).toLocaleDateString()}</p>
+                <div key={h.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div>
+                    <p style={{ fontWeight: 600 }}>{h.full_name || '—'}</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9375rem' }}>{h.email}</p>
+                    <p style={{ fontSize: '0.875rem' }}>{h.company_name || '—'}</p>
+                    <p style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>GST: {h.gst_number || '—'} {h.gst_verified ? <span style={{ color: 'var(--success)', fontSize: '0.75rem' }}>✓ Verified</span> : ''}</p>
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Joined {new Date(h.created_at).toLocaleDateString()}</p>
+                  </div>
+                  {!h.gst_verified && h.gst_number && (
+                    <button onClick={async () => { try { await api.post(`/admin/verify-gst/${h.id}`); load(); } catch (e) { alert(e.message); } }} className="btn btn-primary">Verify GST</button>
+                  )}
                 </div>
               ))
             )}
@@ -230,19 +247,21 @@ export default function AdminDashboard() {
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: 600 }}>Company</th>
                   <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: 600 }}>Email</th>
+                  <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: 600 }}>GST Number</th>
                   <th style={{ textAlign: 'right', padding: '0.75rem', fontWeight: 600 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pending.length === 0 ? (
-                  <tr><td colSpan={3} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No pending HR requests.</td></tr>
+                  <tr><td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>No pending HR requests.</td></tr>
                 ) : (
                   pending.map((p) => (
                     <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '0.75rem' }}>{p.company_name || '—'}</td>
                       <td style={{ padding: '0.75rem' }}>{p.email}</td>
+                      <td style={{ padding: '0.75rem' }}>{p.gst_number || '—'}</td>
                       <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                        <button onClick={() => approve(p.id)} className="btn btn-primary" style={{ marginRight: '0.5rem' }}>Verify</button>
+                        <button onClick={() => approve(p.id)} className="btn btn-primary" style={{ marginRight: '0.5rem' }}>Approve</button>
                         <button onClick={() => reject(p.id)} className="btn btn-danger">Reject</button>
                       </td>
                     </tr>

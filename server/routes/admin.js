@@ -8,12 +8,28 @@ router.use(authMiddleware);
 router.use(roleMiddleware('admin'));
 
 router.get('/pending-hr', (req, res) => {
-  const pending = db.prepare(`
-    SELECT id, email, full_name, phone, company_name, created_at
+  const q = (req.query.q || '').trim().toLowerCase();
+  let pending = db.prepare(`
+    SELECT id, email, full_name, phone, company_name, gst_number, created_at
     FROM hr_pending_approvals
     ORDER BY created_at DESC
   `).all();
+  if (q) {
+    pending = pending.filter(p =>
+      (p.email || '').toLowerCase().includes(q) ||
+      (p.full_name || '').toLowerCase().includes(q) ||
+      (p.company_name || '').toLowerCase().includes(q) ||
+      (p.gst_number || '').toLowerCase().includes(q)
+    );
+  }
   res.json(pending);
+});
+
+router.post('/verify-gst/:id', (req, res) => {
+  const hr = db.prepare('SELECT id FROM users WHERE id = ? AND role = ?').get(req.params.id, 'hr');
+  if (!hr) return res.status(404).json({ error: 'HR not found' });
+  db.prepare('UPDATE users SET gst_verified = 1 WHERE id = ?').run(req.params.id);
+  res.json({ message: 'GST verified' });
 });
 
 router.post('/approve-hr/:id', (req, res) => {
@@ -29,9 +45,9 @@ router.post('/approve-hr/:id', (req, res) => {
   }
 
   db.prepare(`
-    INSERT INTO users (email, password_hash, role, full_name, phone, company_name, status)
-    VALUES (?, ?, 'hr', ?, ?, ?, 'active')
-  `).run(pending.email, pending.password_hash, pending.full_name, pending.phone, pending.company_name);
+    INSERT INTO users (email, password_hash, role, full_name, phone, company_name, gst_number, gst_verified, status)
+    VALUES (?, ?, 'hr', ?, ?, ?, ?, ?, 'active')
+  `).run(pending.email, pending.password_hash, pending.full_name, pending.phone, pending.company_name, pending.gst_number || null, 0);
 
   db.prepare('DELETE FROM hr_pending_approvals WHERE id = ?').run(req.params.id);
 
@@ -79,13 +95,22 @@ router.get('/analytics', (req, res) => {
 });
 
 router.get('/jobs', (req, res) => {
-  const jobs = db.prepare(`
+  const q = (req.query.q || '').trim().toLowerCase();
+  let jobs = db.prepare(`
     SELECT j.*, u.company_name as hr_company, u.email as hr_email,
       (SELECT COUNT(*) FROM applications WHERE job_id = j.id) as application_count
     FROM jobs j
     LEFT JOIN users u ON j.hr_id = u.id
     ORDER BY j.created_at DESC
   `).all();
+  if (q) {
+    jobs = jobs.filter(j =>
+      (j.title || '').toLowerCase().includes(q) ||
+      (j.company_name || j.hr_company || '').toLowerCase().includes(q) ||
+      (j.hr_email || '').toLowerCase().includes(q) ||
+      (j.location || '').toLowerCase().includes(q)
+    );
+  }
   res.json(jobs);
 });
 
@@ -118,27 +143,49 @@ router.delete('/reports/:id', (req, res) => {
 });
 
 router.get('/hrs', (req, res) => {
-  const hrs = db.prepare(`
-    SELECT id, email, full_name, company_name, created_at
+  const q = (req.query.q || '').trim().toLowerCase();
+  let hrs = db.prepare(`
+    SELECT id, email, full_name, company_name, gst_number, gst_verified, created_at
     FROM users WHERE role = 'hr' ORDER BY created_at DESC
   `).all();
+  if (q) {
+    hrs = hrs.filter(h =>
+      (h.email || '').toLowerCase().includes(q) ||
+      (h.full_name || '').toLowerCase().includes(q) ||
+      (h.company_name || '').toLowerCase().includes(q) ||
+      (h.gst_number || '').toLowerCase().includes(q)
+    );
+  }
   res.json(hrs);
 });
 
 router.get('/students', (req, res) => {
-  const students = db.prepare(`
+  const q = (req.query.q || '').trim().toLowerCase();
+  let students = db.prepare(`
     SELECT id, email, full_name, created_at
     FROM users WHERE role = 'student' ORDER BY created_at DESC
   `).all();
+  if (q) {
+    students = students.filter(s =>
+      (s.email || '').toLowerCase().includes(q) ||
+      (s.full_name || '').toLowerCase().includes(q)
+    );
+  }
   res.json(students);
 });
 
 router.get('/companies', (req, res) => {
-  const companies = db.prepare(`
+  const q = (req.query.q || '').trim().toLowerCase();
+  let companies = db.prepare(`
     SELECT DISTINCT company_name, COUNT(*) as hr_count
     FROM users WHERE role = 'hr' AND company_name IS NOT NULL AND company_name != ''
     GROUP BY company_name ORDER BY company_name
   `).all();
+  if (q) {
+    companies = companies.filter(c =>
+      (c.company_name || '').toLowerCase().includes(q)
+    );
+  }
   res.json(companies);
 });
 

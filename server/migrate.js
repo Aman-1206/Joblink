@@ -76,3 +76,26 @@ try {
 } catch (e) {
   console.warn('Migration google_id:', e.message);
 }
+
+// Add gst_number and gst_verified to users
+try {
+  const info = db.prepare('PRAGMA table_info(users)').all();
+  if (!info.some((c) => c.name === 'gst_number')) {
+    db.exec('ALTER TABLE users ADD COLUMN gst_number TEXT');
+  }
+  if (!info.some((c) => c.name === 'gst_verified')) {
+    db.exec('ALTER TABLE users ADD COLUMN gst_verified INTEGER DEFAULT 0');
+  }
+} catch (e) {
+  console.warn('Migration gst users:', e.message);
+}
+
+// Add gst_number to hr_pending_approvals
+try {
+  const info = db.prepare('PRAGMA table_info(hr_pending_approvals)').all();
+  if (!info.some((c) => c.name === 'gst_number')) {
+    db.exec('ALTER TABLE hr_pending_approvals ADD COLUMN gst_number TEXT');
+  }
+} catch (e) {
+  console.warn('Migration gst hr_pending:', e.message);
+}

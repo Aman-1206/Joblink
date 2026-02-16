@@ -10,6 +10,7 @@ export default function Register() {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [gstNumber, setGstNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -40,7 +41,7 @@ export default function Register() {
     setSubmitting(true);
     try {
       const payload = { email, otp, password, fullName, role };
-      if (role === 'hr') Object.assign(payload, { phone, companyName });
+      if (role === 'hr') Object.assign(payload, { phone, companyName, gstNumber });
       const res = await api.post('/auth/verify-otp-register', payload);
       if (res.status === 202) {
         setSuccess(res.data.message);
@@ -115,6 +116,11 @@ export default function Register() {
                 <div className="form-group">
                   <label>Company Name (optional)</label>
                   <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Your Company" />
+                </div>
+                <div className="form-group">
+                  <label>GST Number</label>
+                  <input value={gstNumber} onChange={(e) => setGstNumber(e.target.value)} placeholder="e.g. 22AAAAA0000A1Z5" />
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Admin will verify your company's GST number</p>
                 </div>
               </>
             )}

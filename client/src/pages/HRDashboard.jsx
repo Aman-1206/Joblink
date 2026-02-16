@@ -3,6 +3,9 @@ import { api } from '../lib/api';
 
 export default function HRDashboard() {
   const [tab, setTab] = useState('jobs');
+  const [searchJobs, setSearchJobs] = useState('');
+  const [searchApplicants, setSearchApplicants] = useState('');
+  const [searchJobApplicants, setSearchJobApplicants] = useState('');
   const [jobs, setJobs] = useState([]);
   const [allApplicants, setAllApplicants] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
@@ -19,20 +22,23 @@ export default function HRDashboard() {
 
   const load = () => {
     setLoading(true);
+    const qJobs = searchJobs.trim() ? `?q=${encodeURIComponent(searchJobs.trim())}` : '';
+    const qApplicants = searchApplicants.trim() ? `?q=${encodeURIComponent(searchApplicants.trim())}` : '';
     Promise.all([
-      api.get('/hr/my-jobs').then(r => r.data).catch(() => []),
-      api.get('/hr/all-applicants').then(r => r.data).catch(() => []),
+      api.get(`/hr/my-jobs${qJobs}`).then(r => r.data).catch(() => []),
+      api.get(`/hr/all-applicants${qApplicants}`).then(r => r.data).catch(() => []),
     ]).then(([j, a]) => {
       setJobs(j);
       setAllApplicants(a);
     }).finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [tab, showCreate]);
+  useEffect(() => { load(); }, [tab, showCreate, searchJobs, searchApplicants]);
 
   const loadApplications = () => {
     if (selectedJob) {
-      api.get(`/hr/jobs/${selectedJob.id}/applications`)
+      const q = searchJobApplicants.trim() ? `?q=${encodeURIComponent(searchJobApplicants.trim())}` : '';
+      api.get(`/hr/jobs/${selectedJob.id}/applications${q}`)
         .then(res => setApplications(res.data))
         .catch(() => setApplications([]));
     } else {
@@ -40,7 +46,7 @@ export default function HRDashboard() {
     }
   };
 
-  useEffect(loadApplications, [selectedJob]);
+  useEffect(loadApplications, [selectedJob, searchJobApplicants]);
 
   const totalApplicants = jobs.reduce((s, j) => s + (j.application_count || 0), 0);
   const decisionsMade = allApplicants.filter(a => a.status === 'accepted' || a.status === 'rejected').length;
@@ -121,6 +127,26 @@ export default function HRDashboard() {
         </button>
       </div>
 
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+        {tab === 'jobs' && (
+          <input
+            type="search"
+            placeholder="Search jobs by title, company, location..."
+            value={searchJobs}
+            onChange={(e) => setSearchJobs(e.target.value)}
+            style={{ padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid var(--border)', maxWidth: 320 }}
+          />
+        )}
+        {tab === 'applicants' && (
+          <input
+            type="search"
+            placeholder="Search applicants by name, email, job title..."
+            value={searchApplicants}
+            onChange={(e) => setSearchApplicants(e.target.value)}
+            style={{ padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid var(--border)', maxWidth: 320 }}
+          />
+        )}
+      </div>
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)' }}>
         <button
           className={`btn ${tab === 'jobs' ? 'btn-primary' : 'btn-secondary'}`}
@@ -188,6 +214,13 @@ export default function HRDashboard() {
       ) : selectedJob ? (
         <div>
           <h3 style={{ marginBottom: '1rem' }}>Applications for {selectedJob.title}</h3>
+          <input
+            type="search"
+            placeholder="Search applicants by name, email..."
+            value={searchJobApplicants}
+            onChange={(e) => setSearchJobApplicants(e.target.value)}
+            style={{ marginBottom: '1rem', padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid var(--border)', width: '100%', maxWidth: 320 }}
+          />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {applications.length === 0 ? (
               <div className="card" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No applications yet.</div>

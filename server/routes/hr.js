@@ -7,13 +7,22 @@ router.use(authMiddleware);
 router.use(roleMiddleware('hr'));
 
 router.get('/my-jobs', (req, res) => {
-  const jobs = db.prepare(`
+  const q = (req.query.q || '').trim().toLowerCase();
+  let jobs = db.prepare(`
     SELECT j.*, 
       (SELECT COUNT(*) FROM applications WHERE job_id = j.id) as application_count
     FROM jobs j
     WHERE j.hr_id = ?
     ORDER BY j.created_at DESC
   `).all(req.user.id);
+  if (q) {
+    jobs = jobs.filter(j =>
+      (j.title || '').toLowerCase().includes(q) ||
+      (j.company_name || '').toLowerCase().includes(q) ||
+      (j.location || '').toLowerCase().includes(q) ||
+      (j.type || '').toLowerCase().includes(q)
+    );
+  }
   res.json(jobs);
 });
 
@@ -56,7 +65,8 @@ router.delete('/jobs/:id', (req, res) => {
 });
 
 router.get('/all-applicants', (req, res) => {
-  const applicants = db.prepare(`
+  const q = (req.query.q || '').trim().toLowerCase();
+  let applicants = db.prepare(`
     SELECT a.id, a.status, a.created_at, a.job_id,
            u.full_name, u.email,
            j.title as job_title, j.company_name
@@ -66,6 +76,14 @@ router.get('/all-applicants', (req, res) => {
     WHERE j.hr_id = ?
     ORDER BY a.created_at DESC
   `).all(req.user.id);
+  if (q) {
+    applicants = applicants.filter(a =>
+      (a.full_name || '').toLowerCase().includes(q) ||
+      (a.email || '').toLowerCase().includes(q) ||
+      (a.job_title || '').toLowerCase().includes(q) ||
+      (a.company_name || '').toLowerCase().includes(q)
+    );
+  }
   res.json(applicants);
 });
 
@@ -74,7 +92,8 @@ router.get('/jobs/:jobId/applications', (req, res) => {
     .get(req.user.id, req.params.jobId);
   if (!job) return res.status(404).json({ error: 'Job not found' });
 
-  const applications = db.prepare(`
+  const q = (req.query.q || '').trim().toLowerCase();
+  let applications = db.prepare(`
     SELECT a.id, a.cover_letter, a.resume_path, a.status, a.created_at,
            u.full_name, u.email
     FROM applications a
@@ -82,7 +101,13 @@ router.get('/jobs/:jobId/applications', (req, res) => {
     WHERE a.job_id = ?
     ORDER BY a.created_at DESC
   `).all(req.params.jobId);
-
+  if (q) {
+    applications = applications.filter(a =>
+      (a.full_name || '').toLowerCase().includes(q) ||
+      (a.email || '').toLowerCase().includes(q) ||
+      (a.cover_letter || '').toLowerCase().includes(q)
+    );
+  }
   res.json(applications);
 });
 

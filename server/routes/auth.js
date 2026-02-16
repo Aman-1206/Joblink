@@ -49,7 +49,7 @@ router.post('/send-otp', async (req, res) => {
 // Verify OTP and complete registration
 router.post('/verify-otp-register', (req, res) => {
   try {
-    const { email, otp, password, fullName, phone, companyName } = req.body;
+    const { email, otp, password, fullName, phone, companyName, gstNumber } = req.body;
     const role = req.body.role || 'student';
 
     if (!email || !otp || !password) return res.status(400).json({ error: 'Email, OTP and password required' });
@@ -86,17 +86,17 @@ router.post('/verify-otp-register', (req, res) => {
 
     if (companyDomain) {
       const result = db.prepare(`
-        INSERT INTO users (email, password_hash, role, full_name, phone, company_name, status)
-        VALUES (?, ?, 'hr', ?, ?, ?, 'active')
-      `).run(email, hash, fullName || '', phone || '', companyDomain.company_name);
+        INSERT INTO users (email, password_hash, role, full_name, phone, company_name, gst_number, status)
+        VALUES (?, ?, 'hr', ?, ?, ?, ?, 'active')
+      `).run(email, hash, fullName || '', phone || '', companyDomain.company_name, gstNumber || null);
       const user = db.prepare('SELECT id, email, role, full_name, company_name, status FROM users WHERE id = ?').get(result.lastInsertRowid);
       const token = generateToken(user);
       return res.json({ user, token });
     } else {
       db.prepare(`
-        INSERT INTO hr_pending_approvals (email, password_hash, full_name, phone, company_name)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(email, hash, fullName || '', phone || '', companyName || '');
+        INSERT INTO hr_pending_approvals (email, password_hash, full_name, phone, company_name, gst_number)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(email, hash, fullName || '', phone || '', companyName || '', gstNumber || null);
       return res.status(202).json({
         message: 'Your request is pending approval by admins. We will contact you via email or phone to verify your identity.',
         pending: true,
@@ -127,7 +127,7 @@ router.post('/register/student', async (req, res) => {
 
 router.post('/register/hr', async (req, res) => {
   try {
-    const { email, password, fullName, phone, companyName } = req.body;
+    const { email, password, fullName, phone, companyName, gstNumber } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
     const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
     const pending = db.prepare('SELECT id FROM hr_pending_approvals WHERE email = ?').get(email);
@@ -137,16 +137,16 @@ router.post('/register/hr', async (req, res) => {
     const hash = bcrypt.hashSync(password, 10);
     if (companyDomain) {
       const result = db.prepare(`
-        INSERT INTO users (email, password_hash, role, full_name, phone, company_name, status)
-        VALUES (?, ?, 'hr', ?, ?, ?, 'active')
-      `).run(email, hash, fullName || '', phone || '', companyDomain.company_name);
+        INSERT INTO users (email, password_hash, role, full_name, phone, company_name, gst_number, status)
+        VALUES (?, ?, 'hr', ?, ?, ?, ?, 'active')
+      `).run(email, hash, fullName || '', phone || '', companyDomain.company_name, gstNumber || null);
       const user = db.prepare('SELECT id, email, role, full_name, company_name, status FROM users WHERE id = ?').get(result.lastInsertRowid);
       return res.json({ user, token: generateToken(user) });
     } else {
       db.prepare(`
-        INSERT INTO hr_pending_approvals (email, password_hash, full_name, phone, company_name)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(email, hash, fullName || '', phone || '', companyName || '');
+        INSERT INTO hr_pending_approvals (email, password_hash, full_name, phone, company_name, gst_number)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(email, hash, fullName || '', phone || '', companyName || '', gstNumber || null);
       return res.status(202).json({ message: 'Your request is pending approval by admins.', pending: true });
     }
   } catch (err) {
