@@ -1,0 +1,34 @@
+services:
+  # Backend Express Service
+  - type: web
+    name: my-backend-service
+    env: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+      # Add your MongoDB or other secrets here
+
+  # Frontend React Static Site
+  - type: static
+    name: my-frontend-site
+    env: static
+    plan: free
+    rootDir: client
+    buildCommand: npm install && npm run build
+    publishPath: dist # Change to 'build' if you are using Create React App instead of Vite
+    envVars:
+      - key: VITE_API_URL # Or REACT_APP_API_URL
+        fromService:
+          type: web
+          name: my-backend-service
+          property: host
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
